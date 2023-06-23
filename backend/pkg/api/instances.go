@@ -108,6 +108,14 @@ type InstancesQueryParams struct {
 	SearchValue   string `json:"search_value"`
 }
 
+type InstanceFact struct {
+	Timestamp   time.Time `db:"timestamp" json:"timestamp"`
+	ChannelName string    `db:"channel_name" json:"channel_name"`
+	Arch        string    `db:"arch" json:"arch"`
+	Version     string    `db:"version" json:"version"`
+	Instances   int       `db:"instances" json:"instances"`
+}
+
 type instanceFilterItem int
 
 const (
@@ -630,4 +638,37 @@ func (api *API) instanceStatusHistoryQuery(instanceID, appID, groupID string, li
 		Where(goqu.C("group_id").Eq(groupID)).
 		Order(goqu.C("created_ts").Desc()).
 		Limit(uint(limit))
+}
+
+// instanceFactQuery returns a SelectDataset prepared to return all instances
+// that have been checked in the last hour.
+func (api *API) instanceFactQuery() *goqu.SelectDataset {
+	return goqu.From("instance_application").
+		Select(
+			goqu.C("last_check_for_updates").As("timestamp"),
+			goqu.C("c.name").As("channel_name"),
+			goqu.C("c.arch").As("arch"),
+			goqu.C("version"),
+			goqu.L("COUNT(*)").As("instances")).
+		Join(goqu.T("groups"), goqu.On(goqu.C("group_id").Eq(goqu.C("groups.id")))).
+		Join(goqu.T("channel"), goqu.On(goqu.C("groups.channel_id").Eq(goqu.C("channel.id")))).
+		Join(goqu.T("package"), goqu.On(goqu.C("channel.package_id").Eq(goqu.C("package.id")))).
+		Where(
+			goqu.C("last_check_for_updates").Gte(goqu.L("now() - interval '1 hour'")),
+			goqu.C("last_check_for_updates").Lte(goqu.L("now()"))).
+		GroupBy("last_check_for_updates", "c.name", "c.arch", "version")
+}
+
+func (api *API) updateInstanceFact() error {
+	insertQuery, _, err := goqu.Insert("instance_fact").
+		Cols("timestamp", "channel_name", "arch", "version", "instances").
+		FromQuery(api.instanceFactQuery()).
+		ToSQL()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = api.db.Exec(insertQuery)
+	return err
 }
