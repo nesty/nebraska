@@ -647,7 +647,10 @@ func (api *API) instanceFactQuery() *goqu.SelectDataset {
 		Select(
 			goqu.C("last_check_for_updates").As("timestamp"),
 			goqu.C("c.name").As("channel_name"),
-			goqu.C("c.arch").As("arch"),
+			goqu.Case().
+				When(goqu.C("c.arch").Eq(1), "AMD64").
+				When(goqu.C("c.arch").Eq(2), "ARM").
+				As("arch"),
 			goqu.C("version"),
 			goqu.L("COUNT(*)").As("instances")).
 		Join(goqu.T("groups"), goqu.On(goqu.C("group_id").Eq(goqu.C("groups.id")))).
@@ -657,6 +660,31 @@ func (api *API) instanceFactQuery() *goqu.SelectDataset {
 			goqu.C("last_check_for_updates").Gte(goqu.L("now() - interval '1 hour'")),
 			goqu.C("last_check_for_updates").Lte(goqu.L("now()"))).
 		GroupBy("last_check_for_updates", "c.name", "c.arch", "version")
+}
+
+func (api *API) GetInstanceFact() ([]InstanceFact, error) {
+	query, _, err := api.instanceFactQuery().ToSQL()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := api.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var instances []InstanceFact
+	for rows.Next() {
+		var instance InstanceFact
+		err = rows.Scan(&instance.Timestamp, &instance.ChannelName, &instance.Arch, &instance.Version, &instance.Instances)
+		if err != nil {
+			return nil, err
+		}
+		instances = append(instances, instance)
+	}
+
+	return instances, nil
 }
 
 func (api *API) updateInstanceFact() error {
@@ -670,5 +698,11 @@ func (api *API) updateInstanceFact() error {
 	}
 
 	_, err = api.db.Exec(insertQuery)
+	if err != nil {
+		return err
+	}
+
+	// Run GetInstanceFact() as a sanity check
+	_, err = api.GetInstanceFact()
 	return err
 }
