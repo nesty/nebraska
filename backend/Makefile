@@ -4,6 +4,7 @@ export GO111MODULE
 TAG := `git describe --tags --always`
 SHELL = /bin/bash
 DOCKER_CMD ?= "docker"
+DOCKER_COMPOSE ?= "docker compose"
 DOCKER_REPO ?= "ghcr.io/kinvolk"
 DOCKER_IMAGE_NEBRASKA ?= "nebraska"
 VERSION ?=

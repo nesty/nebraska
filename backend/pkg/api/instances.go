@@ -662,11 +662,8 @@ func (api *API) instanceFactQuery() *goqu.SelectDataset {
 		GroupBy("last_check_for_updates", "c.name", "c.arch", "version")
 }
 
-func (api *API) GetInstanceFact() ([]InstanceFact, error) {
-	query, _, err := api.instanceFactQuery().ToSQL()
-	if err != nil {
-		return nil, err
-	}
+func (api *API) GetInstanceFacts() ([]InstanceFact, error) {
+	query := goqu.From("instance_fact").Select(goqu.L("*"))
 
 	rows, err := api.db.Query(query)
 	if err != nil {
@@ -703,6 +700,6 @@ func (api *API) updateInstanceFact() error {
 	}
 
 	// Run GetInstanceFact() as a sanity check
-	_, err = api.GetInstanceFact()
+	_, err = api.GetInstanceFacts()
 	return err
 }

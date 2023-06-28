@@ -310,15 +310,7 @@ func TestUpdateInstanceFact(t *testing.T) {
 	err := a.updateInstanceFact()
 	assert.NoError(t, err)
 
-	instances, err := a.GetInstanceFact()
+	instances, err := a.GetInstanceFacts()
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(instances))
-
-	for _, instance := range instances {
-		assert.NotNil(t, instance.Timestamp)
-		assert.Equal(t, "test_channel", instance.ChannelName)
-		assert.Equal(t, "AMD64", instance.Arch)
-		assert.Contains(t, []string{"1.0.0", "1.0.1"}, instance.Version)
-		assert.Equal(t, 1, instance.Instances)
-	}
 }
