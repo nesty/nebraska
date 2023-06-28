@@ -642,7 +642,20 @@ func (api *API) instanceStatusHistoryQuery(instanceID, appID, groupID string, li
 
 // instanceFactQuery returns a SelectDataset prepared to return all instances
 // that have been checked in the last hour.
-func (api *API) instanceFactQuery() *goqu.SelectDataset {
+func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.SelectDataset {
+	if t == nil {
+		now := time.Now()
+		t = &now
+	}
+
+	if duration == nil {
+		d := time.Hour
+		duration = &d
+	}
+
+	// Convert duration to string
+	interval := fmt.Sprintf("%d milliseconds", int(duration.Milliseconds()))
+
 	return goqu.From("instance_application").
 		Select(
 			goqu.C("last_check_for_updates").As("timestamp"),
@@ -657,13 +670,30 @@ func (api *API) instanceFactQuery() *goqu.SelectDataset {
 		Join(goqu.T("channel"), goqu.On(goqu.C("groups.channel_id").Eq(goqu.C("channel.id")))).
 		Join(goqu.T("package"), goqu.On(goqu.C("channel.package_id").Eq(goqu.C("package.id")))).
 		Where(
-			goqu.C("last_check_for_updates").Gte(goqu.L("now() - interval '1 hour'")),
-			goqu.C("last_check_for_updates").Lte(goqu.L("now()"))).
+			goqu.C("last_check_for_updates").Gte(goqu.L("?::timestamp - ?::interval", t.Format(time.RFC3339), interval)),
+			goqu.C("last_check_for_updates").Lte(t.Format(time.RFC3339))).
 		GroupBy("last_check_for_updates", "c.name", "c.arch", "version")
 }
 
-func (api *API) GetInstanceFacts() ([]InstanceFact, error) {
-	query := goqu.From("instance_fact").Select(goqu.L("*"))
+func (api *API) GetInstanceFacts(t *time.Time, duration *time.Duration) ([]InstanceFact, error) {
+	if t == nil {
+		now := time.Now()
+		t = &now
+	}
+
+	if duration == nil {
+		d := time.Hour
+		duration = &d
+	}
+
+	// Convert duration to string
+	interval := fmt.Sprintf("%d milliseconds", int(duration.Milliseconds()))
+
+	query := goqu.From("instance_fact").
+		Select(goqu.L("*")).
+		Where(
+			goqu.C("timestamp").Gte(goqu.L("?::timestamp - ?::interval", t.Format(time.RFC3339), interval)),
+			goqu.C("timestamp").Lte(t.Format(time.RFC3339)))
 
 	rows, err := api.db.Query(query)
 	if err != nil {
@@ -684,10 +714,10 @@ func (api *API) GetInstanceFacts() ([]InstanceFact, error) {
 	return instances, nil
 }
 
-func (api *API) updateInstanceFact() error {
+func (api *API) updateInstanceFact(t time.Time, duration time.Duration) error {
 	insertQuery, _, err := goqu.Insert("instance_fact").
 		Cols("timestamp", "channel_name", "arch", "version", "instances").
-		FromQuery(api.instanceFactQuery()).
+		FromQuery(api.instanceFactQuery(t, duration)).
 		ToSQL()
 
 	if err != nil {

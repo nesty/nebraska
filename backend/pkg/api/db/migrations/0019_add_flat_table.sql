@@ -6,6 +6,7 @@ create table instance_fact (
     arch varchar(5) not null,
     version varchar(20) not null,
     instances int not null
+    unique(timestamp, channel_name, arch, version)
 );
 
 create index idx_instance_fact on instance_fact(timestamp, channel_name, arch, version);
