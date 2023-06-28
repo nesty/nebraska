@@ -108,6 +108,14 @@ type InstancesQueryParams struct {
 	SearchValue   string `json:"search_value"`
 }
 
+type InstanceFact struct {
+	Timestamp   time.Time `db:"timestamp" json:"timestamp"`
+	ChannelName string    `db:"channel_name" json:"channel_name"`
+	Arch        string    `db:"arch" json:"arch"`
+	Version     string    `db:"version" json:"version"`
+	Instances   int       `db:"instances" json:"instances"`
+}
+
 type instanceFilterItem int
 
 const (
@@ -630,4 +638,98 @@ func (api *API) instanceStatusHistoryQuery(instanceID, appID, groupID string, li
 		Where(goqu.C("group_id").Eq(groupID)).
 		Order(goqu.C("created_ts").Desc()).
 		Limit(uint(limit))
+}
+
+// instanceFactQuery returns a SelectDataset prepared to return all instances
+// that have been checked in the last hour.
+func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.SelectDataset {
+	if t == nil {
+		now := time.Now()
+		t = &now
+	}
+
+	if duration == nil {
+		d := time.Hour
+		duration = &d
+	}
+
+	// Convert duration to string
+	interval := fmt.Sprintf("%d milliseconds", int(duration.Milliseconds()))
+
+	return goqu.From("instance_application").
+		Select(
+			goqu.C("last_check_for_updates").As("timestamp"),
+			goqu.C("c.name").As("channel_name"),
+			goqu.Case().
+				When(goqu.C("c.arch").Eq(1), "AMD64").
+				When(goqu.C("c.arch").Eq(2), "ARM").
+				As("arch"),
+			goqu.C("version"),
+			goqu.L("COUNT(*)").As("instances")).
+		Join(goqu.T("groups"), goqu.On(goqu.C("group_id").Eq(goqu.C("groups.id")))).
+		Join(goqu.T("channel"), goqu.On(goqu.C("groups.channel_id").Eq(goqu.C("channel.id")))).
+		Join(goqu.T("package"), goqu.On(goqu.C("channel.package_id").Eq(goqu.C("package.id")))).
+		Where(
+			goqu.C("last_check_for_updates").Gte(goqu.L("?::timestamp - ?::interval", t.Format(time.RFC3339), interval)),
+			goqu.C("last_check_for_updates").Lte(t.Format(time.RFC3339))).
+		GroupBy("last_check_for_updates", "c.name", "c.arch", "version")
+}
+
+func (api *API) GetInstanceFacts(t *time.Time, duration *time.Duration) ([]InstanceFact, error) {
+	if t == nil {
+		now := time.Now()
+		t = &now
+	}
+
+	if duration == nil {
+		d := time.Hour
+		duration = &d
+	}
+
+	// Convert duration to string
+	interval := fmt.Sprintf("%d milliseconds", int(duration.Milliseconds()))
+
+	query := goqu.From("instance_fact").
+		Select(goqu.L("*")).
+		Where(
+			goqu.C("timestamp").Gte(goqu.L("?::timestamp - ?::interval", t.Format(time.RFC3339), interval)),
+			goqu.C("timestamp").Lte(t.Format(time.RFC3339)))
+
+	rows, err := api.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var instances []InstanceFact
+	for rows.Next() {
+		var instance InstanceFact
+		err = rows.Scan(&instance.Timestamp, &instance.ChannelName, &instance.Arch, &instance.Version, &instance.Instances)
+		if err != nil {
+			return nil, err
+		}
+		instances = append(instances, instance)
+	}
+
+	return instances, nil
+}
+
+func (api *API) updateInstanceFact(t time.Time, duration time.Duration) error {
+	insertQuery, _, err := goqu.Insert("instance_fact").
+		Cols("timestamp", "channel_name", "arch", "version", "instances").
+		FromQuery(api.instanceFactQuery(t, duration)).
+		ToSQL()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = api.db.Exec(insertQuery)
+	if err != nil {
+		return err
+	}
+
+	// Run GetInstanceFact() as a sanity check
+	_, err = api.GetInstanceFacts()
+	return err
 }

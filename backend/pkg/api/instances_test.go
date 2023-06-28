@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -217,6 +218,7 @@ func TestGetInstancesSearch(t *testing.T) {
 }
 
 func TestGetInstancesFiltered(t *testing.T) {
+
 	a := newForTest(t)
 	defer a.Close()
 
@@ -293,4 +295,37 @@ func TestGetInstanceStatusHistory(t *testing.T) {
 	assert.Equal(t, history[2].Version, "1.0.1")
 	assert.Equal(t, history[3].Status, InstanceStatusUpdateGranted)
 	assert.Equal(t, history[3].Version, "1.0.1")
+}
+
+func TestUpdateInstanceFact(t *testing.T) {
+	a := newForTest(t)
+	defer a.Close()
+
+	start := time.Now()
+
+	tTeam, _ := a.AddTeam(&Team{Name: "test_team"})
+	tApp, _ := a.AddApp(&Application{Name: "test_app", TeamID: tTeam.ID})
+	tPkg, _ := a.AddPackage(&Package{Type: PkgTypeOther, URL: "http://sample.url/pkg", Version: "12.1.0", ApplicationID: tApp.ID})
+	tChannel, _ := a.AddChannel(&Channel{Name: "test_channel", Color: "blue", ApplicationID: tApp.ID, PackageID: null.StringFrom(tPkg.ID), Arch: 1})
+	tGroup, _ := a.AddGroup(&Group{Name: "group1", ApplicationID: tApp.ID, ChannelID: null.StringFrom(tChannel.ID), PolicyUpdatesEnabled: true, PolicySafeMode: true, PolicyPeriodInterval: "15 minutes", PolicyMaxUpdatesPerPeriod: 2, PolicyUpdateTimeout: "60 minutes"})
+	_, _ = a.RegisterInstance(uuid.New().String(), "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
+	_, _ = a.RegisterInstance(uuid.New().String(), "", "10.0.0.2", "1.0.1", tApp.ID, tGroup.ID)
+
+	ts := time.Now()
+	elapsed := ts.Sub(start)
+
+	err := a.updateInstanceFact(ts, elapsed)
+	assert.NoError(t, err)
+
+	instanceFacts, err := a.GetInstanceFacts()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(instanceFacts))
+
+	for _, instanceFact := range instanceFacts {
+		assert.NotNil(t, instanceFact.Timestamp)
+		assert.Equal(t, "test_channel", instanceFact.ChannelName)
+		assert.Equal(t, "AMD64", instanceFact.Arch)
+		assert.Contains(t, []string{"1.0.0", "1.0.1"}, instanceFact.Version)
+		assert.Equal(t, 1, instanceFact.Instances)
+	}
 }
