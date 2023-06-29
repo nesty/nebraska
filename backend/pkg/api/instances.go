@@ -675,14 +675,34 @@ func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.S
 		GroupBy("last_check_for_updates", "c.name", "c.arch", "version")
 }
 
-// GetInstanceFacts returns an InstanceFact table of instances matching a
-// given timestamp value.
-func (api *API) GetInstanceFacts(t *time.Time) ([]InstanceFact, error) {
-	if t == nil {
-		now := time.Now()
-		t = &now
+// GetInstanceFacts returns an InstanceFact table with all instances that have
+// been previously been checked in.
+func (api *API) GetInstanceFacts() ([]InstanceFact, error) {
+	query := goqu.From("instance_fact").
+		Select(goqu.L("*"))
+
+	rows, err := api.db.Query(query.ToSQL())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var instances []InstanceFact
+	for rows.Next() {
+		var instance InstanceFact
+		err = rows.Scan(&instance.Timestamp, &instance.ChannelName, &instance.Arch, &instance.Version, &instance.Instances)
+		if err != nil {
+			return nil, err
+		}
+		instances = append(instances, instance)
 	}
 
+	return instances, nil
+}
+
+// GetInstanceFactsByTimestamp returns an InstanceFact table of instances matching a
+// given timestamp value.
+func (api *API) GetInstanceFactsByTimestamp(t time.Time) ([]InstanceFact, error) {
 	query := goqu.From("instance_fact").
 		Select(goqu.L("*")).
 		Where(
