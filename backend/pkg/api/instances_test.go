@@ -218,7 +218,6 @@ func TestGetInstancesSearch(t *testing.T) {
 }
 
 func TestGetInstancesFiltered(t *testing.T) {
-
 	a := newForTest(t)
 	defer a.Close()
 
@@ -314,10 +313,10 @@ func TestUpdateInstanceFact(t *testing.T) {
 	ts := time.Now()
 	elapsed := ts.Sub(start)
 
-	err := a.updateInstanceFact(ts, elapsed)
+	err := a.updateInstanceFact(&ts, &elapsed)
 	assert.NoError(t, err)
 
-	instanceFacts, err := a.GetInstanceFactsByTimestamp(&ts)
+	instanceFacts, err := a.GetInstanceFactsByTimestamp(ts)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(instanceFacts))
 
