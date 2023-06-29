@@ -317,7 +317,7 @@ func TestUpdateInstanceFact(t *testing.T) {
 	err := a.updateInstanceFact(ts, elapsed)
 	assert.NoError(t, err)
 
-	instanceFacts, err := a.GetInstanceFacts()
+	instanceFacts, err := a.GetInstanceFacts(&ts)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(instanceFacts))
 
