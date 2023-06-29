@@ -729,7 +729,7 @@ func (api *API) GetInstanceFactsByTimestamp(t time.Time) ([]InstanceFact, error)
 
 // updateInstanceFact updates the instance_fact table with instances checked
 // in during a given duration from a given time.
-func (api *API) updateInstanceFact(t time.Time, duration time.Duration) error {
+func (api *API) updateInstanceFact(t *time.Time, duration *time.Duration) error {
 	insertQuery, _, err := goqu.Insert("instance_fact").
 		Cols("timestamp", "channel_name", "arch", "version", "instances").
 		FromQuery(api.instanceFactQuery(&t, &duration)).
@@ -743,8 +743,4 @@ func (api *API) updateInstanceFact(t time.Time, duration time.Duration) error {
 	if err != nil {
 		return err
 	}
-
-	// Run GetInstanceFact() as a sanity check
-	_, err = api.GetInstanceFacts(&t)
-	return err
 }
