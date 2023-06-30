@@ -672,7 +672,8 @@ func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.S
 		Where(
 			goqu.C("last_check_for_updates").Gt(goqu.L("?::timestamp - ?::interval", t.Format(time.RFC3339), interval)),
 			goqu.C("last_check_for_updates").Lte(t.Format(time.RFC3339))).
-		GroupBy("last_check_for_updates", "c.name", "c.arch", "version")
+		GroupBy("last_check_for_updates", "c.name", "c.arch", "version").
+		Order(goqu.C("last_check_for_updates").Desc())
 }
 
 // GetInstanceFacts returns an InstanceFact table with all instances that have
