@@ -305,26 +305,60 @@ func TestUpdateInstanceFact(t *testing.T) {
 	tTeam, _ := a.AddTeam(&Team{Name: "test_team"})
 	tApp, _ := a.AddApp(&Application{Name: "test_app", TeamID: tTeam.ID})
 	tPkg, _ := a.AddPackage(&Package{Type: PkgTypeOther, URL: "http://sample.url/pkg", Version: "12.1.0", ApplicationID: tApp.ID})
-	tChannel, _ := a.AddChannel(&Channel{Name: "test_channel", Color: "blue", ApplicationID: tApp.ID, PackageID: null.StringFrom(tPkg.ID), Arch: 1})
+	tChannel, _ := a.AddChannel(&Channel{Name: "test_channel", Color: "blue", ApplicationID: tApp.ID, PackageID: null.StringFrom(tPkg.ID), Arch: ArchAMD64})
 	tGroup, _ := a.AddGroup(&Group{Name: "group1", ApplicationID: tApp.ID, ChannelID: null.StringFrom(tChannel.ID), PolicyUpdatesEnabled: true, PolicySafeMode: true, PolicyPeriodInterval: "15 minutes", PolicyMaxUpdatesPerPeriod: 2, PolicyUpdateTimeout: "60 minutes"})
-	_, _ = a.RegisterInstance(uuid.New().String(), "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
-	_, _ = a.RegisterInstance(uuid.New().String(), "", "10.0.0.2", "1.0.1", tApp.ID, tGroup.ID)
+	tInstance1, _ := a.RegisterInstance(uuid.New().String(), "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
+	tInstance2, _ := a.RegisterInstance(uuid.New().String(), "", "10.0.0.2", "1.0.0", tApp.ID, tGroup.ID)
+	_, _ = a.RegisterInstance(uuid.New().String(), "", "10.0.0.3", "1.0.1", tApp.ID, tGroup.ID)
+
+	// check tInstance1 in twice
+	err := a.grantUpdate(tInstance1, "1.0.0")
+	assert.NoError(t, err)
+
+	// switch tInstance2 version
+	switched := a.grantUpdate(tInstance2, "1.0.1")
+	assert.NoError(t, switched)
 
 	ts := time.Now()
 	elapsed := ts.Sub(start)
 
-	err := a.updateInstanceFact(&ts, &elapsed)
-	assert.NoError(t, err)
+	update := a.updateInstanceFact(&ts, &elapsed)
+	assert.NoError(t, update)
 
 	instanceFacts, err := a.GetInstanceFactsByTimestamp(ts)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(instanceFacts))
+	assert.Equal(t, 3, len(instanceFacts))
+
+	// count instances per version
+	counts := make(map[string]int)
+	for _, instanceFact := range instanceFacts {
+		counts[instanceFact.Version] += instanceFact.Instances
+	}
+
+	assert.Equal(t, 1, counts["1.0.0"])
+	assert.Equal(t, 2, counts["1.0.1"])
 
 	for _, instanceFact := range instanceFacts {
 		assert.NotNil(t, instanceFact.Timestamp)
 		assert.Equal(t, "test_channel", instanceFact.ChannelName)
 		assert.Equal(t, "AMD64", instanceFact.Arch)
 		assert.Contains(t, []string{"1.0.0", "1.0.1"}, instanceFact.Version)
-		assert.Equal(t, 1, instanceFact.Instances)
+	}
+
+	ts2 := time.Now()
+	elapsed = ts2.Sub(ts)
+
+	update = a.updateInstanceFact(&ts2, &elapsed)
+	assert.NoError(t, update)
+
+	instanceFacts, err = a.GetInstanceFactsByTimestamp(ts2)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(instanceFacts))
+
+	for _, instanceFact := range instanceFacts {
+		assert.NotNil(t, instanceFact.Timestamp)
+		assert.Equal(t, "test_channel", instanceFact.ChannelName)
+		assert.Equal(t, "AMD64", instanceFact.Arch)
+		assert.Contains(t, []string{"1.0.0", "1.0.1"}, instanceFact.Version)
 	}
 }
