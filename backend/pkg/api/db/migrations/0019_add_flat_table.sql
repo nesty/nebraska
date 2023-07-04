@@ -2,9 +2,9 @@
 
 create table if not exists instance_fact (
     timestamp timestamptz not null,
-    channel_name varchar(10) not null,
-    arch varchar(5) not null,
-    version varchar(20) not null,
+    channel_name varchar(50) not null,
+    arch varchar(50) not null,
+    version varchar(50) not null,
     instances int not null check (instances >= 0),
     unique(timestamp, channel_name, arch, version)
 );

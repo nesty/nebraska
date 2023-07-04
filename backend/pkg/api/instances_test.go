@@ -302,32 +302,44 @@ func TestUpdateInstanceFact(t *testing.T) {
 
 	start := time.Now()
 
-	tTeam, _ := a.AddTeam(&Team{Name: "test_team"})
-	tApp, _ := a.AddApp(&Application{Name: "test_app", TeamID: tTeam.ID})
-	tPkg, _ := a.AddPackage(&Package{Type: PkgTypeOther, URL: "http://sample.url/pkg", Version: "12.1.0", ApplicationID: tApp.ID})
-	tChannel, _ := a.AddChannel(&Channel{Name: "test_channel", Color: "blue", ApplicationID: tApp.ID, PackageID: null.StringFrom(tPkg.ID), Arch: ArchAMD64})
-	tGroup, _ := a.AddGroup(&Group{Name: "group1", ApplicationID: tApp.ID, ChannelID: null.StringFrom(tChannel.ID), PolicyUpdatesEnabled: true, PolicySafeMode: true, PolicyPeriodInterval: "15 minutes", PolicyMaxUpdatesPerPeriod: 2, PolicyUpdateTimeout: "60 minutes"})
+	tTeam, err := a.AddTeam(&Team{Name: "test_team"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tApp, err := a.AddApp(&Application{Name: "test_app", TeamID: tTeam.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tPkg, err := a.AddPackage(&Package{Type: PkgTypeOther, URL: "http://sample.url/pkg", Version: "12.1.0", ApplicationID: tApp.ID, Arch: ArchAMD64})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tChannel, err := a.AddChannel(&Channel{Name: "test_channel", Color: "blue", ApplicationID: tApp.ID, PackageID: null.StringFrom(tPkg.ID), Arch: ArchAMD64})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tGroup, err := a.AddGroup(&Group{Name: "group1", ApplicationID: tApp.ID, ChannelID: null.StringFrom(tChannel.ID), PolicyUpdatesEnabled: true, PolicySafeMode: false, PolicyPeriodInterval: "15 minutes", PolicyMaxUpdatesPerPeriod: 2, PolicyUpdateTimeout: "60 minutes"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	tInstance1, _ := a.RegisterInstance(uuid.New().String(), "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
 	tInstance2, _ := a.RegisterInstance(uuid.New().String(), "", "10.0.0.2", "1.0.0", tApp.ID, tGroup.ID)
 	_, _ = a.RegisterInstance(uuid.New().String(), "", "10.0.0.3", "1.0.1", tApp.ID, tGroup.ID)
 
 	// check tInstance1 in twice
-	err := a.grantUpdate(tInstance1, "1.0.0")
-	assert.NoError(t, err)
+	_, _ = a.GetUpdatePackage(tInstance1.ID, "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
 
 	// switch tInstance2 version
-	switched := a.grantUpdate(tInstance2, "1.0.1")
-	assert.NoError(t, switched)
+	_, _ = a.GetUpdatePackage(tInstance2.ID, "", "10.0.0.1", "1.0.1", tApp.ID, tGroup.ID)
 
 	ts := time.Now()
 	elapsed := ts.Sub(start)
 
 	update := a.updateInstanceFact(&ts, &elapsed)
 	assert.NoError(t, update)
-
 	instanceFacts, err := a.GetInstanceFactsByTimestamp(ts)
 	assert.NoError(t, err)
-	assert.Equal(t, 3, len(instanceFacts))
+	assert.Equal(t, 2, len(instanceFacts))
 
 	// count instances per version
 	counts := make(map[string]int)

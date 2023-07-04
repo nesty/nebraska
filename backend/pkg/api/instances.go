@@ -656,31 +656,34 @@ func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.S
 	// Convert duration to string
 	interval := fmt.Sprintf("%d milliseconds", int(duration.Milliseconds()))
 
+	timestamp := goqu.L("?::timestamp", t.Format(time.RFC3339))
+
 	return goqu.From("instance_application").
 		Select(
-			goqu.V(t.Format(time.RFC3339)).As("timestamp"),
-			goqu.C("c.name").As("channel_name"),
+			timestamp.As("timestamp"),
+			goqu.L("channel.name").As("channel_name"),
 			goqu.Case().
-				When(goqu.C("c.arch").Eq(1), "AMD64").
-				When(goqu.C("c.arch").Eq(2), "ARM").
+				When(goqu.L("channel.arch").Eq(1), "AMD64").
+				When(goqu.L("channel.arch").Eq(2), "ARM").
 				As("arch"),
-			goqu.C("version"),
+			goqu.L("package.version").As("version"),
 			goqu.L("COUNT(*)").As("instances")).
-		Join(goqu.T("groups"), goqu.On(goqu.C("group_id").Eq(goqu.C("groups.id")))).
-		Join(goqu.T("channel"), goqu.On(goqu.C("groups.channel_id").Eq(goqu.C("channel.id")))).
-		Join(goqu.T("package"), goqu.On(goqu.C("channel.package_id").Eq(goqu.C("package.id")))).
+		Join(goqu.T("groups"), goqu.On(goqu.L("group_id").Eq(goqu.L("groups.id")))).
+		Join(goqu.T("channel"), goqu.On(goqu.L("groups.channel_id").Eq(goqu.L("channel.id")))).
+		Join(goqu.T("package"), goqu.On(goqu.L("channel.package_id").Eq(goqu.L("package.id")))).
 		Where(
-			goqu.C("last_check_for_updates").Gt(goqu.L("?::timestamp - ?::interval", t.Format(time.RFC3339), interval)),
-			goqu.C("last_check_for_updates").Lte(t.Format(time.RFC3339))).
-		GroupBy("last_check_for_updates", "c.name", "c.arch", "version").
-		Order(goqu.C("last_check_for_updates").Asc())
+			timestamp.Gt(goqu.L("?::timestamp - ?::interval", t.Format(time.RFC3339), interval)),
+			timestamp.Lte(t.Format(time.RFC3339))).
+		GroupBy("timestamp", "channel.name", "channel.arch", "package.version").
+		Order(goqu.C("timestamp").Asc())
 }
 
 // GetInstanceFacts returns an InstanceFact table with all instances that have
 // been previously been checked in.
 func (api *API) GetInstanceFacts() ([]InstanceFact, error) {
 	query := goqu.From("instance_fact").
-		Select(goqu.L("*")).Order(goqu.C("timestamp").Asc())
+		Select(goqu.L("*")).Order(goqu.C("timestamp").Asc()).
+		Order(goqu.C("timestamp").Asc())
 
 	rows, err := api.db.Query(query.ToSQL())
 	if err != nil {
@@ -706,8 +709,8 @@ func (api *API) GetInstanceFacts() ([]InstanceFact, error) {
 func (api *API) GetInstanceFactsByTimestamp(t time.Time) ([]InstanceFact, error) {
 	query := goqu.From("instance_fact").
 		Select(goqu.L("*")).
-		Where(
-			goqu.C("timestamp").Eq(t.Format(time.RFC3339)))
+		Where(goqu.C("timestamp").Eq(t.Format(time.RFC3339))).
+		Order(goqu.C("version").Asc())
 
 	rows, err := api.db.Query(query.ToSQL())
 	if err != nil {
