@@ -322,22 +322,39 @@ func TestUpdateInstanceFact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tInstance1, _ := a.RegisterInstance(uuid.New().String(), "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
-	tInstance2, _ := a.RegisterInstance(uuid.New().String(), "", "10.0.0.2", "1.0.0", tApp.ID, tGroup.ID)
-	_, _ = a.RegisterInstance(uuid.New().String(), "", "10.0.0.3", "1.0.1", tApp.ID, tGroup.ID)
+	tInstance1, err := a.RegisterInstance(uuid.New().String(), "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tInstance2, err := a.RegisterInstance(uuid.New().String(), "", "10.0.0.2", "1.0.0", tApp.ID, tGroup.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = a.RegisterInstance(uuid.New().String(), "", "10.0.0.3", "1.0.1", tApp.ID, tGroup.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// check tInstance1 in twice
-	_, _ = a.GetUpdatePackage(tInstance1.ID, "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
+	_, err = a.GetUpdatePackage(tInstance1.ID, "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// switch tInstance2 version
-	_, _ = a.GetUpdatePackage(tInstance2.ID, "", "10.0.0.1", "1.0.1", tApp.ID, tGroup.ID)
+	_, err = a.GetUpdatePackage(tInstance2.ID, "", "10.0.0.2", "1.0.1", tApp.ID, tGroup.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ts := time.Now()
 	elapsed := ts.Sub(start)
 
 	update := a.updateInstanceFact(&ts, &elapsed)
-	assert.NoError(t, update)
 	instanceFacts, err := a.GetInstanceFactsByTimestamp(ts)
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(instanceFacts))
 
@@ -364,6 +381,9 @@ func TestUpdateInstanceFact(t *testing.T) {
 	assert.NoError(t, update)
 
 	instanceFacts, err = a.GetInstanceFactsByTimestamp(ts2)
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(instanceFacts))
 

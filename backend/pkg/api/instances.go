@@ -672,8 +672,8 @@ func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.S
 		Join(goqu.T("channel"), goqu.On(goqu.L("groups.channel_id").Eq(goqu.L("channel.id")))).
 		Join(goqu.T("package"), goqu.On(goqu.L("channel.package_id").Eq(goqu.L("package.id")))).
 		Where(
-			timestamp.Gt(goqu.L("?::timestamp - ?::interval", t.Format(time.RFC3339), interval)),
-			timestamp.Lte(t.Format(time.RFC3339))).
+			goqu.C("last_check_for_updates").Gt(goqu.L("?::timestamp - ?::interval", t.Format(time.RFC3339), interval)),
+			goqu.C("last_check_for_updates").Lte(t.Format(time.RFC3339))).
 		GroupBy("timestamp", "channel.name", "channel.arch", "package.version").
 		Order(goqu.C("timestamp").Asc())
 }
@@ -712,10 +712,19 @@ func (api *API) GetInstanceFactsByTimestamp(t time.Time) ([]InstanceFact, error)
 		Where(goqu.C("timestamp").Eq(t.Format(time.RFC3339))).
 		Order(goqu.C("version").Asc())
 
-	rows, err := api.db.Query(query.ToSQL())
+	sql, args, err := query.ToSQL()
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("Executing SQL: %s, with arguments: %v\n", sql, args) // print SQL query and arguments
+
+	rows, err := api.db.Query(sql, args...)
+	if err != nil {
+		fmt.Printf("Error while executing SQL query: %v\n", err) // print error if any
+		return nil, err
+	}
+
 	defer rows.Close()
 
 	var instances []InstanceFact
@@ -723,10 +732,14 @@ func (api *API) GetInstanceFactsByTimestamp(t time.Time) ([]InstanceFact, error)
 		var instance InstanceFact
 		err = rows.Scan(&instance.Timestamp, &instance.ChannelName, &instance.Arch, &instance.Version, &instance.Instances)
 		if err != nil {
+			fmt.Printf("Error while scanning row: %v\n", err) // print error if any during row scanning
 			return nil, err
 		}
+		fmt.Printf("Scanned row: %v\n", instance) // print the instance that was just scanned
 		instances = append(instances, instance)
 	}
+
+	fmt.Printf("Returning instances: %v\n", instances) // print the instances being returned
 
 	return instances, nil
 }
