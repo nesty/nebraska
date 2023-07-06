@@ -656,11 +656,12 @@ func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.S
 	// Convert duration to string
 	interval := fmt.Sprintf("%d microseconds", int(duration.Microseconds()))
 
-	timestamp := goqu.L("?", t.Format(time.RFC3339))
+	timestamp := goqu.L("timestamp ?", t.Format(time.RFC3339))
+	timestampMinusDuration := goqu.L("timestamp ? - interval ?", t.Format(time.RFC3339), interval)
 
-	query := goqu.From(goqu.L("instance_application")).
+	query := goqu.From(goqu.T("instance_application")).
 		Select(
-			timestamp.As("timestamp"),
+			goqu.C("last_check_for_updates").As("timestamp"),
 			goqu.L("channel.name").As("channel_name"),
 			goqu.Case().
 				When(goqu.L("channel.arch").Eq(1), "AMD64").
@@ -672,10 +673,13 @@ func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.S
 		Join(goqu.L("channel"), goqu.On(goqu.L("groups.channel_id").Eq(goqu.L("channel.id")))).
 		Join(goqu.L("package"), goqu.On(goqu.L("channel.package_id").Eq(goqu.L("package.id")))).
 		Where(
-			goqu.L("last_check_for_updates").Gt(goqu.L("timestamp ? - interval ?", goqu.V(t.Format(time.RFC3339)), goqu.V(interval))),
-			goqu.L("last_check_for_updates").Lte(goqu.L("timestamp ?", goqu.V(t.Format(time.RFC3339))))).
-		GroupBy(goqu.L("timestamp"), goqu.L("channel.name"), goqu.L("channel.arch"), goqu.L("package.version")).
-		Order(goqu.L("timestamp").Asc())
+			goqu.L("last_check_for_updates").Gt(timestampMinusDuration),
+			goqu.L("last_check_for_updates").Lte(timestamp)).
+		GroupBy(goqu.L("last_check_for_updates"),
+			goqu.L("channel.name"),
+			goqu.L("channel.arch"),
+			goqu.L("package.version")).
+		Order(goqu.L("last_check_for_updates").Asc())
 
 	// // Print input parameters
 	// fmt.Printf("Input time: %s\n", t.Format(time.RFC3339))
@@ -748,7 +752,7 @@ func (api *API) GetInstanceFactsByTimestamp(t time.Time) ([]InstanceFact, error)
 // updateInstanceFact updates the instance_fact table with instances checked
 // in during a given duration from a given time.
 func (api *API) updateInstanceFact(t *time.Time, duration *time.Duration) error {
-	insertQuery, _, err := goqu.Insert("instance_fact").
+	insertQuery, _, err := goqu.Insert(goqu.T("instance_fact")).
 		Cols("timestamp", "channel_name", "arch", "version", "instances").
 		FromQuery(api.instanceFactQuery(t, duration)).
 		ToSQL()
@@ -757,7 +761,7 @@ func (api *API) updateInstanceFact(t *time.Time, duration *time.Duration) error 
 		return err
 	}
 
-	fmt.Printf(insertQuery)
+	// fmt.Printf(insertQuery)
 
 	_, err = api.db.Exec(insertQuery)
 	if err != nil {
