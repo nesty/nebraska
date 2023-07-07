@@ -695,11 +695,14 @@ func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.S
 // GetInstanceFacts returns an InstanceFact table with all instances that have
 // been previously been checked in.
 func (api *API) GetInstanceFacts() ([]InstanceFact, error) {
-	query := goqu.From("instance_fact").
-		Select(goqu.L("*")).Order(goqu.C("timestamp").Asc()).
-		Order(goqu.C("timestamp").Asc())
+	query, _, err := goqu.From("instance_fact").
+		Select(goqu.L("*")).
+		Order(goqu.C("timestamp").Asc()).ToSQL()
+	if err != nil {
+		return nil, err
+	}
 
-	rows, err := api.db.Queryx(query.ToSQL())
+	rows, err := api.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
