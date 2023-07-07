@@ -303,62 +303,44 @@ func TestUpdateInstanceFact(t *testing.T) {
 	start := time.Now()
 
 	tTeam, err := a.AddTeam(&Team{Name: "test_team"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	tApp, err := a.AddApp(&Application{Name: "test_app", TeamID: tTeam.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	tPkg, err := a.AddPackage(&Package{Type: PkgTypeOther, URL: "http://sample.url/pkg", Version: "12.1.0", ApplicationID: tApp.ID, Arch: ArchAMD64})
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	tChannel, err := a.AddChannel(&Channel{Name: "test_channel", Color: "blue", ApplicationID: tApp.ID, PackageID: null.StringFrom(tPkg.ID), Arch: ArchAMD64})
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	tGroup, err := a.AddGroup(&Group{Name: "group1", ApplicationID: tApp.ID, ChannelID: null.StringFrom(tChannel.ID), PolicyUpdatesEnabled: true, PolicySafeMode: false, PolicyPeriodInterval: "15 minutes", PolicyMaxUpdatesPerPeriod: 2, PolicyUpdateTimeout: "60 minutes"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	tInstance1, err := a.RegisterInstance(uuid.New().String(), "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	tInstance2, err := a.RegisterInstance(uuid.New().String(), "", "10.0.0.2", "1.0.0", tApp.ID, tGroup.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
+
 	_, err = a.RegisterInstance(uuid.New().String(), "", "10.0.0.3", "1.0.1", tApp.ID, tGroup.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	// check tInstance1 in twice
 	_, err = a.GetUpdatePackage(tInstance1.ID, "", "10.0.0.1", "1.0.0", tApp.ID, tGroup.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	// switch tInstance2 version
 	_, err = a.GetUpdatePackage(tInstance2.ID, "", "10.0.0.2", "1.0.1", tApp.ID, tGroup.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	ts := time.Now()
 	elapsed := ts.Sub(start)
 
 	err = a.updateInstanceFact(&ts, &elapsed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	instanceFacts, err := a.GetInstanceFactsByTimestamp(ts)
-	if err != nil {
-		t.Fatal(err)
-	}
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(instanceFacts))
 

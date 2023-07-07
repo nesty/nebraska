@@ -661,7 +661,7 @@ func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.S
 
 	query := goqu.From(goqu.T("instance_application")).
 		Select(
-			goqu.C("last_check_for_updates").As("timestamp"),
+			timestamp.As("timestamp"),
 			goqu.L("channel.name").As("channel_name"),
 			goqu.Case().
 				When(goqu.L("channel.arch").Eq(1), "AMD64").
@@ -675,11 +675,11 @@ func (api *API) instanceFactQuery(t *time.Time, duration *time.Duration) *goqu.S
 		Where(
 			goqu.L("last_check_for_updates").Gt(timestampMinusDuration),
 			goqu.L("last_check_for_updates").Lte(timestamp)).
-		GroupBy(goqu.L("last_check_for_updates"),
+		GroupBy(timestamp,
 			goqu.L("channel.name"),
 			goqu.L("channel.arch"),
 			goqu.L("package.version")).
-		Order(goqu.L("last_check_for_updates").Asc())
+		Order(timestamp.Asc())
 
 	// // Print input parameters
 	// fmt.Printf("Input time: %s\n", t.Format(time.RFC3339))
